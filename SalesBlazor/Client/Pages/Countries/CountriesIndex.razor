@@ -1,0 +1,98 @@
+﻿@page "/countries"
+@inject IRepository repository
+@inject NavigationManager navigationManager
+@inject SweetAlertService sweetAlertService
+
+<div class="card">
+    <div class="card-header">
+        <span>
+            <i class="oi oi-globe"></i> Países
+            <a class="btn btn-sm btn-primary float-end" href="/countries/create"><i class="oi oi-plus"></i> Adicionar País</a>
+        </span>
+    </div>
+    <div class="card-body mb-20">
+        <GenericList MyList="Countries">
+            <Body>
+                <RadzenDataGrid @ref="grid" AllowFiltering="true" AllowColumnResize="true"
+                                FilterMode="FilterMode.SimpleWithMenu" PageSize="10" AllowPaging="true"
+                                AllowSorting="true" Data="@Countries" TItem="Country" ColumnWidth="300px"
+                                FilterCaseSensitivity="@filterCaseSensitivity"
+                                LogicalFilterOperator="@logicalFilterOperator">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="Country" Property="Name" Width="150px" TextAlign="TextAlign.Center"
+                                              Frozen="true" Title="País" />
+                        <RadzenDataGridColumn TItem="Country" Property="StatesNumber" Width="150px" TextAlign="TextAlign.Center"
+                                              Frozen="true" Title="Estados / Departamentos" />
+                        <RadzenDataGridColumn TItem="Country" Filterable="false"
+                                              Width="150px"
+                                              TextAlign="TextAlign.Center"
+                                              Title="Operaciones">
+                            <Template Context="data">
+                                <RadzenButton Icon="build" Click=@(() => navigationManager.NavigateTo($"/countries/details/{data.Id}")) Text="Detalles" />
+                                <RadzenButton Icon="edit" Click=@(() => navigationManager.NavigateTo($"/countries/edit/{data.Id}")) Text="Editar" />
+                                <RadzenButton Icon="delete" Click=@(() => DeleteAsync(data.Id)) Text="Borrar" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            </Body>
+        </GenericList>
+    </div>
+</div>
+@code {
+    public IEnumerable<Country>? Countries { get; set; }
+    RadzenDataGrid<Country>? grid;
+    private string message = string.Empty;
+
+    FilterCaseSensitivity filterCaseSensitivity = FilterCaseSensitivity.CaseInsensitive;
+    LogicalFilterOperator logicalFilterOperator = LogicalFilterOperator.Or;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await LoadAsync();
+
+    }
+
+    private async Task LoadAsync()
+    {
+        string url = $"api/Countries";
+
+        var result = await repository.Get<List<Country>>(url);
+
+        Countries = result.Response!;
+
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        var alert = await sweetAlertService.FireAsync(new SweetAlertOptions
+            {
+                Title = "Confirmación",
+                Text = "¿Realmente deseas eliminar el registro?",
+                Icon = SweetAlertIcon.Question,
+                ShowCancelButton = true,
+                CancelButtonText = "No",
+                ConfirmButtonText = "Si"
+            });
+
+        var confirm = string.IsNullOrEmpty(alert.Value);
+        if (confirm)
+        {
+            return;
+        }
+
+        var result = await repository.Delete($"/api/countries/{id}");
+        if (result.Error)
+        {
+            if (result.HttpResponseMessage.StatusCode != HttpStatusCode.NotFound)
+            {
+                var message = await result.GetErrorMessageAsync();
+                await sweetAlertService.FireAsync("Error", message, SweetAlertIcon.Error);
+                return;
+            }
+        }
+
+        await LoadAsync();
+    }
+}
